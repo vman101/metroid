@@ -2,7 +2,7 @@ CC := cc
 
 CFLAGS := -Wall -Wextra -g3
 
-LDFLAGS := -lSDL2
+LDFLAGS := -lSDL2 -lSDL2_image
 
 SRC := main.c
 
