@@ -72,7 +72,10 @@ typedef struct s_window
 typedef struct
 {
 	void		*transfered_data;
-	SDL_mutex	*server_mutex;
+	SDL_mutex	*mutex;
+	bool		was_read;
+	bool		was_set;
+	i32			connection_status;
 }	t_server_data;
 
 extern int32_t g_signal_flag;
@@ -89,3 +92,6 @@ void	correct_player(t_player *player, t_platform platforms[], u32 rect_count);
 /* Misc */
 void setup_signal_handlers(void);
 void handle_sigint(int sig);
+
+/* Server */
+int	client(void *data);

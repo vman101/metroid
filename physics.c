@@ -9,7 +9,6 @@ u8	colision_detection_calulate(i32 rect1_x, i32 rect1_y, i32 rect1_width, i32 re
 		if (rect1_x + rect1_width > rect2_x && rect1_x < rect2_x + rect2_width)
 		{
 			result |= UP;
-			printf("UP collision detected\n");
 		}
 	}
 
@@ -18,7 +17,6 @@ u8	colision_detection_calulate(i32 rect1_x, i32 rect1_y, i32 rect1_width, i32 re
 		if (rect1_x + rect1_width > rect2_x && rect1_x < rect2_x + rect2_width)
 		{
 			result |= DOWN;
-			printf("DOWN collision detected\n");
 		}
 	}
 
@@ -27,7 +25,6 @@ u8	colision_detection_calulate(i32 rect1_x, i32 rect1_y, i32 rect1_width, i32 re
 		if (rect1_y + rect1_height < rect2_y && rect1_y  + rect1_height > rect2_y + rect2_height)
 		{
 			result |= LEFT;
-			printf("LEFT collision detected\n");
 		}
 	}
 
@@ -36,11 +33,8 @@ u8	colision_detection_calulate(i32 rect1_x, i32 rect1_y, i32 rect1_width, i32 re
 		if (rect1_y + rect1_height > rect2_y && rect1_y  + rect1_height < rect2_y + rect2_height)
 		{
 			result |= RIGHT;
-			printf("RIGHT collision detected\n");
 		}
 	}
-	if (result == 0)
-		printf("none\n");
 	return (result);
 }
 
@@ -86,7 +80,6 @@ void	correct_player(t_player *player, t_platform platforms[], u32 rect_count)
 	static	t_platform last_standing_point;
 
 	for (u32 i = 0; i < rect_count; i++) {
-		printf("checking collision\n");
 		collision_points = colision_detection_calulate(	player->x, player->y, player->width, player->height, \
 														platforms[i].x, platforms[i].y, platforms[i].width, platforms[i].height);
 		if (collision_points == 0 && !player->is_grounded)
