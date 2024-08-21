@@ -41,7 +41,6 @@ u8	colision_detection_calulate(i32 rect1_x, i32 rect1_y, i32 rect1_width, i32 re
 void	gravity_apply(t_player *player)
 {
 	player->y += 3;
-	printf("laaanddddiiingg!!!\n");
 }
 
 void	player_jump(t_player *player)
@@ -70,7 +69,6 @@ void	player_jump(t_player *player)
 			previous_height = WINDOW_HEIGTH_INITIAL;
 			return ;
 		}
-		printf("juuuuummmpiiiing!!!\n");
 	}
 }
 

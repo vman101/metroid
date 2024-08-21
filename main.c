@@ -1,8 +1,7 @@
 #include "./metroid.h"
-#include <SDL2/SDL_thread.h>
-#include <strings.h>
 
 int32_t g_signal_flag = 0;
+
 int main(int argc, char **argv)
 {
 	SDL_Window *window = NULL;
@@ -49,7 +48,6 @@ int main(int argc, char **argv)
 	SDL_Thread	*server_thread = SDL_CreateThread(client, "Thread 1", &server);
 
 	t_player	player = { .is_grounded = false, .is_jumping = false, .x = 200, .y = 300, .width = 36, .height = 56 };
-
 	t_platform	ground = { .x = 0, .y = window_height - 150, .width = window_width, .height = 150 };
 	t_platform	ledges[101];
 
