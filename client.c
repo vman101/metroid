@@ -26,6 +26,43 @@ static bool	set_nonblocking_mode(int fd)
 	return (true);
 }
 
+void	print_rect(u8 *received_data)
+{
+	SDL_Rect rect = *(SDL_Rect *)received_data;
+
+	printf("x: %d\ny: %d\nwidth: %d\nheight %d\n", rect.x, rect.y, rect.w, rect.h);
+}
+
+typedef struct ServerData
+{
+	u32 data_type;
+	u32 id;
+	u32 filler;
+	u32 filler2;
+	u8	*transfered_data;
+}	t_data;
+
+void	handle_received_data(u8 *data, t_server_data *server)
+{
+	i32	data_identifier = *(i32 *)data;
+
+	printf("Data identifier: %d\n", data_identifier);
+	switch (data_identifier)
+	{
+		case RECT:
+			SDL_LockMutex(server->mutex);
+			server->data_type = RECT;
+			server->transfered_data = data + 16;
+			server->was_set = true;
+			server->was_read = false;
+			print_rect(server->transfered_data);
+			SDL_UnlockMutex(server->mutex);
+			break;
+		default:
+			break;
+	}
+}
+
 int	client(void *data)
 {
 	int server_socket;
@@ -43,12 +80,14 @@ int	client(void *data)
 	memset(&server_address, 0, sizeof(server_address));
 	server_address.sin_family = AF_INET;
 	server_address.sin_port = htons(PORT);
+
 	if (inet_pton(AF_INET, "127.0.0.1", &server_address.sin_addr) <= 0)
 	{
 		fprintf(stderr, "Invalid address/ Address not supported: %s\n", strerror(errno));
 		close(server_socket);
 		return (-1);
 	}
+
 	const char *message = "Hello server\n";
 	ssize_t sent_bytes = sendto(server_socket, message, strlen(message), 0, (struct sockaddr *)&server_address, sizeof(server_address));
 	if (sent_bytes < 0)
@@ -57,6 +96,7 @@ int	client(void *data)
 		close(server_socket);
 		return -1;
 	}
+
 	else
 	{
 		printf("Message sent to server: %s\n", message);
@@ -66,6 +106,7 @@ int	client(void *data)
 			while (1)
 			{
 				char buffer[BUFFER_SIZE];
+
 				SDL_LockMutex(server->mutex);
 				if (server->connection_status == -1)
 				{
@@ -73,8 +114,10 @@ int	client(void *data)
 					break ;
 				}
 				SDL_UnlockMutex(server->mutex);
+
 				socklen_t addr_len = sizeof(server_address);
-				ssize_t received_bytes = recvfrom(server_socket, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&server_address, &addr_len);
+				ssize_t received_bytes = recvfrom(server_socket, buffer, BUFFER_SIZE - 1, 0, (struct sockaddr *)&server_address, &addr_len);
+
 				if (received_bytes < 0)
 				{
 					if (errno == EAGAIN)
@@ -90,49 +133,18 @@ int	client(void *data)
 				}
 				else if (received_bytes > 0)
 				{
-					buffer[received_bytes] = '\0'; // Null-terminate the received data
-					printf("Received packet: %s\n", buffer);
+					buffer[received_bytes] = '\0';
+					handle_received_data((u8 *)buffer, server);
 				}
 				else
 				{
-					usleep(100000); // Sleep for 100 milliseconds
+					usleep(100000);
 				}
+
+				while (server->was_read == false)
+					usleep(1000);
 			}
 		}
 	}
 	return (0);
 }
-
-#define END
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

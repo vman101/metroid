@@ -31,7 +31,7 @@ int main(int argc, char **argv)
 			SDL_GetError());
 		exit(1);
 	}
-	
+
 	t_server_data	server =
 	{
 		.was_read = false,
@@ -75,13 +75,13 @@ int main(int argc, char **argv)
 			if (event.type == SDL_QUIT)
 				program_is_running = 0;
 		}
-		
+
 		const u8	*keyboard_state = SDL_GetKeyboardState(NULL);
 
 		if (keyboard_state[SDL_SCANCODE_A])
-			player.x -=  2;
+			player.x -=  4;
 		if (keyboard_state[SDL_SCANCODE_D])
-			player.x +=  2;
+			player.x +=  4;
 		if (keyboard_state[SDL_SCANCODE_W])
 		{
 			if (player.is_jumping == false && player.is_grounded == true)
@@ -134,7 +134,7 @@ int main(int argc, char **argv)
 	}
 
 	int status = 0;
-	
+
 	SDL_LockMutex(server.mutex);
 	server.connection_status = -1;
 	SDL_UnlockMutex(server.mutex);

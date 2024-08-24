@@ -1,8 +1,7 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_mutex.h>
 #include <SDL2/SDL_error.h>
-#include <SDL2/SDL_net.h>
-#include <SDL2/SDL_image.h>
+#include "SDL_image.h"
 #include <SDL2/SDL_keycode.h>
 #include <SDL2/SDL_log.h>
 #include <SDL2/SDL_pixels.h>
@@ -69,6 +68,12 @@ typedef struct s_window
 	u32 height;
 } t_window;
 
+typedef enum
+{
+	PLAYER,
+	RECT,
+}	t_data_type;
+
 typedef struct
 {
 	void		*transfered_data;
@@ -76,6 +81,7 @@ typedef struct
 	bool		was_read;
 	bool		was_set;
 	i32			connection_status;
+	t_data_type	data_type;
 }	t_server_data;
 
 extern int32_t g_signal_flag;

@@ -1,5 +1,4 @@
 #include "./metroid.h"
-#include <SDL2/SDL_net.h>
 
 void	initialize_sdl(SDL_Renderer **renderer, SDL_Window **window, i32 window_width, i32 window_height)
 {
@@ -10,19 +9,10 @@ void	initialize_sdl(SDL_Renderer **renderer, SDL_Window **window, i32 window_wid
 		exit(1);
 	}
 
-	if (SDLNet_Init() == -1)
-	{
-		SDL_Log("Error initilazing SDLNet: %s", SDL_GetError());
-		SDL_Quit();
-		exit(1);
-	}
-	SDLNet_Init();
-
 	if (IMG_Init(IMG_INIT_PNG) == 0)
 	{
 		SDL_Log("Error initilazing SDL_Image: %s", SDL_GetError());
 		SDL_Quit();
-		SDLNet_Quit();
 		exit(1);
 	}
 

@@ -1,8 +1,10 @@
 CC := cc
 
-CFLAGS := -Wall -Wextra -g3
+CFLAGS := -Wall -Wextra -g3 -I./include
 
-LDFLAGS := -lSDL2 -lSDL2_image -lSDL2_net
+LDFLAGS := -lSDL2 -L./lib -lSDL2_image
+
+LIB := lib/*
 
 SRC := main.c physics.c signals.c init.c client.c
 

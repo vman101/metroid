@@ -40,7 +40,7 @@ u8	colision_detection_calulate(i32 rect1_x, i32 rect1_y, i32 rect1_width, i32 re
 
 void	gravity_apply(t_player *player)
 {
-	player->y += 3;
+	player->y += 5;
 }
 
 void	player_jump(t_player *player)
