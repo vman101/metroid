@@ -34,6 +34,7 @@ int main(int argc, char **argv)
 	u32 window_height = WINDOW_HEIGTH_INITIAL;
 	t_ring_buffer message_buffer = {0};
 
+	  printf(&quot; Listener on port % d \n & quot;, PORT);
 	ring_buffer_init(&message_buffer);
 	(void)argc;
 	(void)argv;
