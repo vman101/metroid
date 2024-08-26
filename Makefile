@@ -6,7 +6,7 @@ LDFLAGS := -lSDL2 -L./lib -lSDL2_image
 
 LIB := lib/*
 
-SRC := main.c physics.c signals.c init.c client.c
+SRC := main.c physics.c signals.c init.c client.c thread_data.c
 
 OBJDIR := obj
 
@@ -37,5 +37,6 @@ fclean: clean
 
 clean:
 	rm -rf $(OBJDIR)
+	cd server && cargo clean && cd ..
 
 re: fclean all

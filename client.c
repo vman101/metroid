@@ -1,16 +1,11 @@
 #include "./metroid.h"
+#include <SDL2/SDL_mutex.h>
+#include <netinet/in.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <errno.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
-
-typedef struct
-{
-	t_server_data	server;
-	int				in_use;
-	int				questing;
-	uint32_t		timer_wood;
-} Client;
 
 #define PORT 8080
 #define BUFFER_SIZE 2048
@@ -33,41 +28,90 @@ void	print_rect(u8 *received_data)
 	printf("x: %d\ny: %d\nwidth: %d\nheight %d\n", rect.x, rect.y, rect.w, rect.h);
 }
 
-typedef struct ServerData
-{
-	u32 data_type;
-	u32 id;
-	u32 filler;
-	u32 filler2;
-	u8	*transfered_data;
-}	t_data;
-
-void	handle_received_data(u8 *data, t_server_data *server)
+void	handle_received_data(u8 *data, t_server *server)
 {
 	i32	data_identifier = *(i32 *)data;
+	t_message message;
 
 	printf("Data identifier: %d\n", data_identifier);
 	switch (data_identifier)
 	{
-		case RECT:
-			SDL_LockMutex(server->mutex);
-			server->data_type = RECT;
-			server->transfered_data = data + 16;
-			server->was_set = true;
-			server->was_read = false;
-			print_rect(server->transfered_data);
-			SDL_UnlockMutex(server->mutex);
+		case MSG_RECT:
+			message.type = MSG_RECT;
+			message.data.platform = *(t_platform *)(data + sizeof(i32));
+			server_data_set(server->buffer, &message);
+			break;
+		case MSG_PLAYER:
+			message.type = MSG_PLAYER;
+			message.data.player = *(t_player *)(data + sizeof(i32));
+			server_data_set(server->buffer, &message);
 			break;
 		default:
+			message.type = MSG_UNKNOWN;
+			message.data.unknown = data + sizeof(i32);
+			server_data_set(server->buffer, &message);
 			break;
 	}
+}
+
+t_client client_local_create(t_server *server, int server_socket, struct sockaddr_in server_address)
+{
+	t_client client = {0};
+
+	client.server = server;
+	const u32 message = htonl(42691337);
+	if (set_nonblocking_mode(server_socket))
+	{
+		while (1)
+		{
+			char buffer[256];
+
+			ssize_t sent_bytes = sendto(server_socket, &message, sizeof(message), 0, (struct sockaddr *)&server_address, sizeof(server_address));
+			if (sent_bytes < 0)
+			{
+				fprintf(stderr, "sendto failed: %s\n", strerror(errno));
+				close(server_socket);
+				return (client);
+			}
+			SDL_LockMutex(server->mutex);
+			if (server->connection_status == -1)
+			{
+				SDL_UnlockMutex(server->mutex);
+				break ;
+			}
+			SDL_UnlockMutex(server->mutex);
+			socklen_t addr_len = sizeof(server_address);
+			ssize_t received_bytes = recvfrom(server_socket, buffer, 4, 0, (struct sockaddr *)&server_address, &addr_len);
+			if (received_bytes > 0)
+			{
+				t_message message;
+				client.id = *(u32 *)buffer;
+				if ((client.mutex = SDL_CreateMutex()) == NULL)
+				{
+					fprintf(stderr, "Failed creating mutex: %s\n", SDL_GetError());
+					close(server_socket);
+					exit(1);
+				}
+				server->connection_status = 1;
+				client.is_connected = true;
+				client.server = server;
+				message.type = MSG_CONNECT;
+				message.data.client = client;
+				server_data_set(server->buffer, &message);
+				printf("Connection Established!\nRemote Client ID: %d\n", client.id);
+				break ;
+			}
+			usleep(1000);
+		}
+	}
+	return (client);
 }
 
 int	client(void *data)
 {
 	int server_socket;
 	struct sockaddr_in server_address;
-	t_server_data *server = (t_server_data *)data;
+	t_server *server = (t_server *)data;
 
 	server_socket = socket(AF_INET, SOCK_DGRAM, 0);
 	if (server_socket < 0)
@@ -88,62 +132,57 @@ int	client(void *data)
 		return (-1);
 	}
 
-	const char *message = "Hello server\n";
-	ssize_t sent_bytes = sendto(server_socket, message, strlen(message), 0, (struct sockaddr *)&server_address, sizeof(server_address));
-	if (sent_bytes < 0)
-	{
-		fprintf(stderr, "sendto failed: %s\n", strerror(errno));
-		close(server_socket);
-		return -1;
-	}
 
-	else
+	t_client client = client_local_create(server, server_socket, server_address);
+
+	if (set_nonblocking_mode(server_socket))
 	{
-		printf("Message sent to server: %s\n", message);
-		server->connection_status = 1;
-		if (set_nonblocking_mode(server_socket))
+		while (1)
 		{
-			while (1)
+			char buffer[BUFFER_SIZE];
+
+			SDL_LockMutex(server->mutex);
+			if (server->connection_status == -1)
 			{
-				char buffer[BUFFER_SIZE];
-
-				SDL_LockMutex(server->mutex);
-				if (server->connection_status == -1)
-				{
-					SDL_UnlockMutex(server->mutex);
-					break ;
-				}
 				SDL_UnlockMutex(server->mutex);
+				break ;
+			}
+			SDL_UnlockMutex(server->mutex);
 
-				socklen_t addr_len = sizeof(server_address);
-				ssize_t received_bytes = recvfrom(server_socket, buffer, BUFFER_SIZE - 1, 0, (struct sockaddr *)&server_address, &addr_len);
+			socklen_t addr_len = sizeof(server_address);
+			ssize_t received_bytes = recvfrom(server_socket, buffer, BUFFER_SIZE - 1, 0, (struct sockaddr *)&server_address, &addr_len);
 
-				if (received_bytes < 0)
-				{
-					if (errno == EAGAIN)
-					{
-						usleep(100000);
-						continue ;
-					}
-					SDL_LockMutex(server->mutex);
-					fprintf(stderr, "recvfrom failed: %s\n", strerror(errno));
-					server->connection_status = -1;
-					SDL_UnlockMutex(server->mutex);
-					break;
-				}
-				else if (received_bytes > 0)
-				{
-					buffer[received_bytes] = '\0';
-					handle_received_data((u8 *)buffer, server);
-				}
-				else
+			if (received_bytes < 0)
+			{
+				if (errno == EAGAIN)
 				{
 					usleep(100000);
+					continue ;
 				}
-
-				while (server->was_read == false)
-					usleep(1000);
+				SDL_LockMutex(server->mutex);
+				fprintf(stderr, "recvfrom failed: %s\n", strerror(errno));
+				server->connection_status = -1;
+				SDL_UnlockMutex(server->mutex);
+				break;
 			}
+			else if (received_bytes > 0)
+			{
+				buffer[received_bytes] = '\0';
+				handle_received_data((u8 *)buffer, server);
+			}
+			else
+			{
+				usleep(100000);
+			}
+
+				SDL_LockMutex(server->mutex);
+				if (server->was_read == true)
+				{
+					server->was_read = false;
+					SDL_UnlockMutex(server->mutex);
+				}
+				SDL_UnlockMutex(server->mutex);
+				usleep(100000);
 		}
 	}
 	return (0);

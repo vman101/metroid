@@ -1,7 +1,8 @@
 use std::net::{SocketAddr, UdpSocket};
-use std::thread::sleep;
+use std::thread::{self, JoinHandle, sleep};
 use std::time::Duration;
 use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
 
 #[repr(C)]
 struct Rect {
@@ -11,52 +12,58 @@ struct Rect {
     height: u32,
 }
 
-fn to_bytes<T: Sized>(value: &T) -> Vec<u8> {
-    let ptr = value as *const T as *const u8;
-    let size = std::mem::size_of::<T>();
-    unsafe { std::slice::from_raw_parts(ptr, size).to_vec() }
-}
+// fn to_bytes<T: Sized>(value: &T) -> Vec<u8> {
+//     let ptr = value as *const T as *const u8;
+//     let size = std::mem::size_of::<T>();
+//     unsafe { std::slice::from_raw_parts(ptr, size).to_vec() }
+// }
 
-#[repr(C)]
 struct ServerData {
-	data_type: u32,
-	id: u32,
-	filler: u32,
-	filler1: u32,
+	server_data: HashMap<u32, Arc<Mutex<ClientData>>>,
 }
 
-fn connected_to_user(buf: &mut [u8], n: usize, addr: SocketAddr, socket: &UdpSocket) {
-	let rect = Rect {
-        x: 50,
-        y: 70,
-        width: 70,
-        height: 50,
-    };
+struct ClientData {
+    id: u32,
+    connected: bool,
+    socket:UdpSocket,
+    address: SocketAddr,
+    server_state: Arc<Mutex<ServerData>>,
+}
 
-	let received_data = buf;
-    println!(
-        "Received from {}: {:?}",
-        addr,
-        String::from_utf8_lossy(received_data)
+fn connected_to_user(client: Arc<Mutex<ClientData>>) {
+	println!("User Connected succesfully");
+	{
+		let mut user = client.lock().expect("failed to lock mutex user");
+		user.connected = true;
+	}
+	loop {}
+}
+
+fn create_user (
+    received_data: &[u8],
+    id: u32,
+    socket: UdpSocket,
+    address: SocketAddr,
+    server_state: Arc<Mutex<ServerData>>
+    ) -> Result<ClientData, i32> {
+
+    let message_chunk = u32::from_be_bytes(
+        received_data
+            .try_into()
+            .expect("Slice with incorrect length")
     );
-    // Echo back the received data
-    let bytes = to_bytes(&rect);
-    let data = ServerData {
-       	data_type: 1,
-       	id: 1,
-       	filler: 1,
-       	filler1: 1,
-       	// data: bytes.as_slice(),
-    };
-    let mut packet = to_bytes(&data);
-    packet.extend(&bytes);
-    match socket.send_to(&packet, addr) {
-        Ok(_) => println!(
-            "Sent to {}: {:?}",
-            addr,
-            bytes
-        ),
-        Err(e) => println!("Send to {} error: {:?}", addr, e),
+
+    println!("{message_chunk}");
+    if message_chunk.to_ne_bytes() == 42691337_u32.to_ne_bytes() {
+        Ok(ClientData{
+            id,
+            connected: false,
+            socket,
+            address,
+            server_state
+        })
+    } else {
+        Err(1)
     }
 }
 
@@ -68,16 +75,45 @@ fn main() {
     // Bind the UDP socket to the specified address
     let socket = UdpSocket::bind(listen).expect("Failed to bind socket");
     println!("UDP echo Server is listening on {}", listen);
-
     // Spawn a new thread to handle the player
-    let server_clone = Arc::clone(&server);
-    let socket_clone = socket.try_clone().expect("Failed to clone socket");
+    let server = Arc::new(Mutex::new(ServerData {
+                server_data: HashMap::new(),
+            }
+        )
+    );
 
+    let mut threads: Vec<JoinHandle<()>> = Vec::new();
     loop {
         match socket.recv_from(&mut buf) {
             Ok((n, addr)) => {
+	            let server_clone = Arc::clone(&server);
+
+	            let new_user = match create_user(
+	                &buf[..n],
+	                id_counter,
+	                socket.try_clone().expect("Failed to clone server socket"),
+	                addr,
+	                server_clone.clone(),
+	            ) {
+	                Ok(user) => user,
+	                Err(e) => {
+	                    println!("Failed to create user: {:?}", e);
+	                    continue; // Skip to the next iteration if user creation fails
+	                }
+	            };
+	            let new_user: Arc<Mutex<ClientData>> = Arc::new(Mutex::new(new_user));
+                {
+	                let mut server_state = server.lock().expect("Failed to lock server");
+	                server_state.server_data.insert(id_counter, Arc::clone(&new_user));
+                }
+
 	           	socket.send_to(&id_counter.to_ne_bytes(), addr).expect("Failed To Send ACK");
-            	connected_to_user(&mut buf, n, addr, &socket);
+				let user_clone = Arc::clone(&new_user);
+                let handle = thread::spawn( || {
+                    connected_to_user(user_clone)
+                });
+                id_counter += 1;
+                threads.push(handle);
             }
             Err(e) => {
                 println!("Receive error: {:?}", e);
